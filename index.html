@@ -30,18 +30,17 @@
 
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-10">
+        <div class="col-md-12 col-lg-10">
             
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">⚙️ Connection Settings</h5>
+                    <h5 class="mb-0">Connection Settings</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-8">
                             <label class="form-label fw-bold">Microservice URL</label>
                             <input type="text" id="apiUrl" class="form-control" placeholder="e.g. https://your-domain.com">
-                            <div class="form-text">Enter the full link to your deployed Sheets Microservice.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">API Key</label>
@@ -53,15 +52,15 @@
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">🔍 Search Inventory</h5>
+                    <h5 class="mb-0">Search Inventory</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Model</label>
                             <input type="text" id="filterModel" class="form-control" placeholder="e.g. iPhone 13">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Carrier</label>
                             <select id="filterCarrier" class="form-select">
                                 <option value="">Any</option>
@@ -71,7 +70,19 @@
                                 <option value="AT&T">AT&T</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Storage</label>
+                            <select id="filterStorage" class="form-select">
+                                <option value="">Any</option>
+                                <option value="64GB">64GB</option>
+                                <option value="128GB">128GB</option>
+                                <option value="256GB">256GB</option>
+                                <option value="512GB">512GB</option>
+                                <option value="1TB">1TB</option>
+                                <option value="2TB">1TB</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label">Condition</label>
                             <select id="filterCondition" class="form-select">
                                 <option value="">Any</option>
@@ -102,7 +113,7 @@
 </div>
 
 <script>
-    // 1. On Load: Restore settings from previous session
+    // 1. On Load: Restore settings
     window.onload = function() {
         const savedUrl = localStorage.getItem('sheets_micro_url');
         const savedKey = localStorage.getItem('sheets_micro_key');
@@ -118,8 +129,8 @@
         const model = document.getElementById('filterModel').value;
         const carrier = document.getElementById('filterCarrier').value;
         const condition = document.getElementById('filterCondition').value;
+        const storage = document.getElementById('filterStorage').value; // <--- NEW
 
-        // Clean URL (remove trailing slash)
         if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
         // 3. Validation
@@ -131,12 +142,13 @@
             alert("⚠️ Please enter your API Key.");
             return;
         }
-        if (!model && !carrier && !condition) {
+        // Enforce at least one filter (including storage now)
+        if (!model && !carrier && !condition && !storage) {
             alert("⚠️ Please select at least one filter.");
             return;
         }
 
-        // 4. Save settings for next time
+        // 4. Save settings
         localStorage.setItem('sheets_micro_url', baseUrl);
         localStorage.setItem('sheets_micro_key', apiKey);
 
@@ -149,9 +161,9 @@
         if (model) params.append('model', model);
         if (carrier) params.append('carrier', carrier);
         if (condition) params.append('condition', condition);
+        if (storage) params.append('storage', storage); // <--- NEW
 
         try {
-            // 6. The Request
             const response = await fetch(`${baseUrl}/products?${params.toString()}`, {
                 method: 'GET',
                 headers: {
@@ -160,11 +172,9 @@
                 }
             });
 
-            // 7. Robust Error Handling (HTML vs JSON)
             const text = await response.text();
 
             if (text.trim().startsWith('<')) {
-                // If we got HTML, it's an error page (404/502/etc)
                 console.error("Server returned HTML:", text);
                 if (text.includes("404")) {
                     alert("❌ Error 404: Endpoint not found. Check your URL.");
@@ -176,7 +186,6 @@
                 return;
             }
 
-            // Parse JSON
             const data = JSON.parse(text);
 
             if (!response.ok) {
@@ -235,7 +244,6 @@
         });
     }
 
-    // --- GSM Arena Image Generator ---
     function getGsmArenaUrl(modelName) {
         let cleanName = modelName.toLowerCase()
             .replace(/\(.*\)/g, '')
