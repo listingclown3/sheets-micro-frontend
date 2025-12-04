@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Lookup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .product-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stock-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .device-img {
+            height: 180px;
+            object-fit: contain;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">⚙️ Connection Settings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Microservice URL</label>
+                            <input type="text" id="apiUrl" class="form-control" placeholder="e.g. https://your-domain.com">
+                            <div class="form-text">Enter the full link to your deployed Sheets Microservice.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">API Key</label>
+                            <input type="password" id="apiKey" class="form-control" placeholder="Bearer Token...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">🔍 Search Inventory</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Model</label>
+                            <input type="text" id="filterModel" class="form-control" placeholder="e.g. iPhone 13">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Carrier</label>
+                            <select id="filterCarrier" class="form-select">
+                                <option value="">Any</option>
+                                <option value="Unlocked">Unlocked</option>
+                                <option value="Verizon">Verizon</option>
+                                <option value="T-Mobile">T-Mobile</option>
+                                <option value="AT&T">AT&T</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Condition</label>
+                            <select id="filterCondition" class="form-select">
+                                <option value="">Any</option>
+                                <option value="A">Grade A</option>
+                                <option value="B">Grade B</option>
+                                <option value="C">Grade C</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 text-end">
+                            <button onclick="fetchInventory()" class="btn btn-success px-4 fw-bold">
+                                Find Products
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loading" class="text-center d-none py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">Connecting to Odoo...</p>
+            </div>
+
+            <div id="resultsArea" class="row g-4"></div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. On Load: Restore settings from previous session
+    window.onload = function() {
+        const savedUrl = localStorage.getItem('sheets_micro_url');
+        const savedKey = localStorage.getItem('sheets_micro_key');
+        
+        if (savedUrl) document.getElementById('apiUrl').value = savedUrl;
+        if (savedKey) document.getElementById('apiKey').value = savedKey;
+    };
+
+    async function fetchInventory() {
+        // 2. Get values
+        let baseUrl = document.getElementById('apiUrl').value.trim();
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const model = document.getElementById('filterModel').value;
+        const carrier = document.getElementById('filterCarrier').value;
+        const condition = document.getElementById('filterCondition').value;
+
+        // Clean URL (remove trailing slash)
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+        // 3. Validation
+        if (!baseUrl) {
+            alert("⚠️ Please enter your Microservice URL.");
+            return;
+        }
+        if (!apiKey) {
+            alert("⚠️ Please enter your API Key.");
+            return;
+        }
+        if (!model && !carrier && !condition) {
+            alert("⚠️ Please select at least one filter.");
+            return;
+        }
+
+        // 4. Save settings for next time
+        localStorage.setItem('sheets_micro_url', baseUrl);
+        localStorage.setItem('sheets_micro_key', apiKey);
+
+        // 5. Prepare UI
+        document.getElementById('resultsArea').innerHTML = '';
+        document.getElementById('loading').classList.remove('d-none');
+
+        // Build Params
+        const params = new URLSearchParams();
+        if (model) params.append('model', model);
+        if (carrier) params.append('carrier', carrier);
+        if (condition) params.append('condition', condition);
+
+        try {
+            // 6. The Request
+            const response = await fetch(`${baseUrl}/products?${params.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + apiKey,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            // 7. Robust Error Handling (HTML vs JSON)
+            const text = await response.text();
+
+            if (text.trim().startsWith('<')) {
+                // If we got HTML, it's an error page (404/502/etc)
+                console.error("Server returned HTML:", text);
+                if (text.includes("404")) {
+                    alert("❌ Error 404: Endpoint not found. Check your URL.");
+                } else if (text.includes("502")) {
+                    alert("❌ Error 502: Bad Gateway. Is your Python service running?");
+                } else {
+                    alert("❌ Server Error: The server returned an HTML error page instead of data.");
+                }
+                return;
+            }
+
+            // Parse JSON
+            const data = JSON.parse(text);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Request failed");
+            }
+
+            renderResults(data);
+
+        } catch (error) {
+            alert("Connection Error: " + error.message);
+        } finally {
+            document.getElementById('loading').classList.add('d-none');
+        }
+    }
+
+    function renderResults(products) {
+        const container = document.getElementById('resultsArea');
+        
+        if (products.length === 0) {
+            container.innerHTML = `<div class="col-12 text-center text-muted"><h4>No products found.</h4></div>`;
+            return;
+        }
+
+        products.forEach(p => {
+            const imageUrl = getGsmArenaUrl(p.model);
+            const stockColor = p.stock_quantity > 0 ? 'bg-success' : 'bg-secondary';
+            const stockText = p.stock_quantity > 0 ? `${p.stock_quantity} in stock` : 'Out of stock';
+
+            const card = `
+                <div class="col-md-4 col-sm-6">
+                    <div class="card h-100 product-card">
+                        <span class="badge ${stockColor} stock-badge">${stockText}</span>
+                        
+                        <div class="text-center bg-light mt-3" style="min-height:180px">
+                            <img src="${imageUrl}" 
+                                 class="card-img-top device-img" 
+                                 alt="${p.model}"
+                                 onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/1024px-No_image_available.svg.png';"
+                            >
+                        </div>
+
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate">${p.model}</h5>
+                            <p class="card-text text-muted small mb-2">
+                                ${p.carrier} • ${p.storage} • ${p.color}
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <span class="h5 mb-0 text-primary">$${p.sell_price}</span>
+                                <span class="badge bg-light text-dark border">Grade ${p.condition}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', card);
+        });
+    }
+
+    // --- GSM Arena Image Generator ---
+    function getGsmArenaUrl(modelName) {
+        let cleanName = modelName.toLowerCase()
+            .replace(/\(.*\)/g, '')
+            .trim()
+            .replace(/\s+/g, '-');
+
+        let finalFilename = cleanName;
+
+        if (cleanName.startsWith('iphone')) {
+            finalFilename = 'apple-' + cleanName;
+        } else if (cleanName.includes('samsung') && !cleanName.startsWith('samsung')) {
+            finalFilename = 'samsung-' + cleanName;
+        }
+
+        return `https://fdn2.gsmarena.com/vv/bigpic/${finalFilename}.jpg`;
+    }
+</script>
+
+</body>
+</html>
