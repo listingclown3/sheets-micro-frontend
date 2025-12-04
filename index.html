@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventory Lookup</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         .product-card {
             transition: transform 0.2s;
@@ -89,7 +90,22 @@
                                 <option value="A">Grade A</option>
                                 <option value="B">Grade B</option>
                                 <option value="C">Grade C</option>
+                                <option value="D">Grade D</option>
                             </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Sort By</label>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                                    Select Filters
+                                </button>
+                                <ul class="dropdown-menu w-100">
+                                    <li><a class="dropdown-item" href="#" onclick="toggleSort('asc', event)"><input type="checkbox" id="sortAsc"> Price: Low to High</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="toggleSort('desc', event)"><input type="checkbox" id="sortDesc"> Price: High to Low</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="toggleSort('stock-asc', event)"><input type="checkbox" id="sortStockAsc"> Stock: Low to High</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="toggleSort('stock-desc', event)"><input type="checkbox" id="sortStockDesc"> Stock: High to Low</a></li>
+                                </ul>
+                            </div>
                         </div>
 
                         <div class="col-12 text-end">
@@ -209,7 +225,19 @@
             return;
         }
 
-        products.forEach(p => {
+        if (document.getElementById('sortAsc').checked) {
+            products.sort((a, b) => a.sell_price - b.sell_price);
+        } else if (document.getElementById('sortDesc').checked) {
+            products.sort((a, b) => b.sell_price - a.sell_price);
+        } else if (document.getElementById('sortStockAsc').checked) {
+            products.sort((a, b) => a.stock_quantity - b.stock_quantity);
+        } else if (document.getElementById('sortStockDesc').checked) {
+            products.sort((a, b) => b.stock_quantity - a.stock_quantity);
+        }
+
+        const compacted = compactProducts(products);
+
+        compacted.forEach(p => {
             const imageUrl = getGsmArenaUrl(p.model);
             const stockColor = p.stock_quantity > 0 ? 'bg-success' : 'bg-secondary';
             const stockText = p.stock_quantity > 0 ? `${p.stock_quantity} in stock` : 'Out of stock';
@@ -230,7 +258,7 @@
                         <div class="card-body">
                             <h5 class="card-title text-truncate">${p.model}</h5>
                             <p class="card-text text-muted small mb-2">
-                                ${p.carrier} • ${p.storage} • ${p.color}
+                                ${p.carrier} • ${p.storage} • ${p.colors}
                             </p>
                             <div class="d-flex justify-content-between align-items-center mt-3">
                                 <span class="h5 mb-0 text-primary">$${p.sell_price}</span>
@@ -242,6 +270,39 @@
             `;
             container.insertAdjacentHTML('beforeend', card);
         });
+    }
+
+    function toggleSort(type, event) {
+        event.preventDefault();
+        const conflicts = { 'asc': 'sortDesc', 'desc': 'sortAsc', 'stock-asc': 'sortStockDesc', 'stock-desc': 'sortStockAsc' };
+        const checkboxId = type === 'asc' ? 'sortAsc' : type === 'desc' ? 'sortDesc' : type === 'stock-asc' ? 'sortStockAsc' : 'sortStockDesc';
+        const checkbox = document.getElementById(checkboxId);
+        
+        checkbox.checked = !checkbox.checked;
+        
+        if (checkbox.checked && conflicts[type]) {
+            const conflictBox = document.getElementById(conflicts[type]);
+            conflictBox.checked = false;
+            conflictBox.disabled = true;
+        } else if (!checkbox.checked && conflicts[type]) {
+            document.getElementById(conflicts[type]).disabled = false;
+        }
+    }
+
+    function compactProducts(products) {
+        const grouped = {};
+        
+        products.forEach(p => {
+            const key = `${p.model}|${p.carrier}|${p.storage}|${p.condition}|${p.sell_price}`;
+            if (!grouped[key]) {
+                grouped[key] = { ...p, colors: p.color, stock_quantity: p.stock_quantity };
+            } else {
+                grouped[key].colors += `, ${p.color}`;
+                grouped[key].stock_quantity += p.stock_quantity;
+            }
+        });
+        
+        return Object.values(grouped);
     }
 
     function getGsmArenaUrl(modelName) {
