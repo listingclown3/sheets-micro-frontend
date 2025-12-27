@@ -262,7 +262,12 @@
                             </p>
                             <div class="d-flex justify-content-between align-items-center mt-3">
                                 <span class="h5 mb-0 text-primary">$${p.sell_price}</span>
-                                <span class="badge bg-light text-dark border">Grade ${p.condition}</span>
+                                <div>
+                                    <span class="badge bg-light text-dark border me-2">Grade ${p.condition}</span>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="showRemoveModal(${p.variant_id}, '${p.model}')" title="Remove Stock">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -321,7 +326,140 @@
 
         return `https://fdn2.gsmarena.com/vv/bigpic/${finalFilename}.jpg`;
     }
+
+    let currentVariantId = null;
+
+    function showRemoveModal(variantId, productName) {
+        currentVariantId = variantId;
+        document.getElementById('modalProductName').textContent = productName;
+        document.getElementById('serialInputs').innerHTML = `
+            <div class="mb-3">
+                <label class="form-label">Serial Number 1</label>
+                <input type="text" class="form-control serial-input" placeholder="Enter serial number">
+            </div>
+        `;
+        new bootstrap.Modal(document.getElementById('removeStockModal')).show();
+    }
+
+    function addSerialInput() {
+        const container = document.getElementById('serialInputs');
+        const count = container.children.length + 1;
+        const newInput = `
+            <div class="mb-3">
+                <label class="form-label">Serial Number ${count}</label>
+                <input type="text" class="form-control serial-input" placeholder="Enter serial number">
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', newInput);
+    }
+
+    async function removeMultipleStock() {
+        const baseUrl = document.getElementById('apiUrl').value.trim().replace(/\/$/, '');
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const serialInputs = document.querySelectorAll('.serial-input');
+        const serials = Array.from(serialInputs).map(input => input.value.trim()).filter(s => s);
+        
+        if (serials.length === 0) {
+            alert('Please enter at least one serial number');
+            return;
+        }
+        
+        let results = [];
+        for (const serial of serials) {
+            try {
+                const response = await fetch(`${baseUrl}/reduce-stock`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        variant_id: currentVariantId,
+                        serial_number: serial,
+                        quantity: 1
+                    })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    results.push(`✅ ${serial}: ${result.message}`);
+                } else {
+                    results.push(`❌ ${serial}: ${result.detail}`);
+                }
+            } catch (error) {
+                results.push(`❌ ${serial}: ${error.message}`);
+            }
+        }
+        
+        alert(results.join('\n'));
+        bootstrap.Modal.getInstance(document.getElementById('removeStockModal')).hide();
+        fetchInventory(); // Refresh the inventory
+    }
+        const serial = document.getElementById('saleSerial').value.trim();
+        const baseUrl = document.getElementById('apiUrl').value.trim().replace(/\/$/, '');
+        const apiKey = document.getElementById('apiKey').value.trim();
+        
+        if (!serial) {
+            document.getElementById('saleResult').innerHTML = '<p class="text-danger">Serial number is required</p>';
+            return;
+        }
+        
+        if (!baseUrl || !apiKey) {
+            document.getElementById('saleResult').innerHTML = '<p class="text-danger">Please configure API URL and Key first</p>';
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${baseUrl}/reduce-stock`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    serial_number: serial,
+                    quantity: 1
+                })
+            });
+            
+            const result = await response.json();
+            if (response.ok) {
+                document.getElementById('saleResult').innerHTML = `<p class="text-success">✅ ${result.message}</p>`;
+                document.getElementById('saleSerial').value = '';
+            } else {
+                document.getElementById('saleResult').innerHTML = `<p class="text-danger">❌ ${result.detail}</p>`;
+            }
+        } catch (error) {
+            document.getElementById('saleResult').innerHTML = `<p class="text-danger">❌ Error: ${error.message}</p>`;
+        }
+    }
 </script>
+
+<!-- Remove Stock Modal -->
+<div class="modal fade" id="removeStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Remove Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Product: <strong id="modalProductName"></strong></p>
+                <div id="serialInputs">
+                    <div class="mb-3">
+                        <label class="form-label">Serial Number 1</label>
+                        <input type="text" class="form-control serial-input" placeholder="Enter serial number">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addSerialInput()">+ Add Another Serial</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="removeMultipleStock()">Remove Stock</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
