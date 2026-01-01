@@ -393,45 +393,7 @@
         
         alert(results.join('\n'));
         bootstrap.Modal.getInstance(document.getElementById('removeStockModal')).hide();
-        fetchInventory(); // Refresh the inventory
-    }
-        const serial = document.getElementById('saleSerial').value.trim();
-        const baseUrl = document.getElementById('apiUrl').value.trim().replace(/\/$/, '');
-        const apiKey = document.getElementById('apiKey').value.trim();
-        
-        if (!serial) {
-            document.getElementById('saleResult').innerHTML = '<p class="text-danger">Serial number is required</p>';
-            return;
-        }
-        
-        if (!baseUrl || !apiKey) {
-            document.getElementById('saleResult').innerHTML = '<p class="text-danger">Please configure API URL and Key first</p>';
-            return;
-        }
-        
-        try {
-            const response = await fetch(`${baseUrl}/reduce-stock`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    serial_number: serial,
-                    quantity: 1
-                })
-            });
-            
-            const result = await response.json();
-            if (response.ok) {
-                document.getElementById('saleResult').innerHTML = `<p class="text-success">✅ ${result.message}</p>`;
-                document.getElementById('saleSerial').value = '';
-            } else {
-                document.getElementById('saleResult').innerHTML = `<p class="text-danger">❌ ${result.detail}</p>`;
-            }
-        } catch (error) {
-            document.getElementById('saleResult').innerHTML = `<p class="text-danger">❌ Error: ${error.message}</p>`;
-        }
+        fetchInventory();
     }
 </script>
 
